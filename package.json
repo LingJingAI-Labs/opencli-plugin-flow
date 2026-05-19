@@ -1,0 +1,33 @@
+{
+  "name": "opencli-plugin-flow",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Google Labs Flow CLI — Omni video generation via browser bridge",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LingJingAI-Labs/opencli-plugin-flow.git"
+  },
+  "scripts": {
+    "postinstall": "node install.mjs"
+  },
+  "peerDependencies": {
+    "@jackwener/opencli": ">=1.7.22"
+  },
+  "keywords": [
+    "opencli",
+    "plugin",
+    "flow",
+    "google-labs",
+    "omni",
+    "video-generation"
+  ],
+  "files": [
+    "*.ts",
+    "*.js",
+    "*.json",
+    "skills/",
+    "install.mjs",
+    "README.md"
+  ]
+}

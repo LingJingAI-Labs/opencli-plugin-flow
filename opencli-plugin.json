@@ -1,0 +1,6 @@
+{
+  "name": "flow",
+  "version": "0.1.0",
+  "description": "Google Labs Flow CLI — Omni video generation via browser bridge",
+  "opencli": ">=1.7.22"
+}

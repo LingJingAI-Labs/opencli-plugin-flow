@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+*.log
+.DS_Store
+# transpiled output (built on-demand by opencli plugin install)
+*.js
+!install.mjs
