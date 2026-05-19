@@ -18,7 +18,7 @@ import {
   type Aspect, type GenInputs, type ModelSpec,
 } from './_models.js';
 import { modelFriendly, shortId } from './_format.js';
-import { resolveRefToken } from './media.js';
+import { resolveRefToken, resolveVideoRef } from './media.js';
 
 function uuid(): string {
   return (crypto as any).randomUUID ? (crypto as any).randomUUID() : crypto.randomBytes(16).toString('hex');
@@ -56,6 +56,7 @@ cli({
     { name: 'yes', type: 'boolean', default: false, help: '跳过 dry-run 确认，直接提交（agent 用）' },
     { name: 'reload', type: 'boolean', default: false, help: '提交前先 reload Flow 页面（拿 fresh reCAPTCHA / session，规避 PUBLIC_ERROR_UNUSUAL_ACTIVITY 风控）' },
     { name: 'refs', help: '参考图列表，逗号分隔；每个 token 可以是：别名 / 本地图片路径 / mediaId UUID。示例：--refs cat,./bg.jpg,9a42af9d-... （含路径会自动上传去重）' },
+    { name: 'refVideo', help: '参考视频（触发视频编辑模式 abra_edit，40 积分固定）。可填别名/本地视频路径/mediaId UUID。例：--refVideo ./clip.mp4 --prompt "改成晚上"' },
   ],
   columns: ['状态', '任务ID(短)', '模型', '消耗积分', '余额', '备注'],
   footerExtra: (kwargs) => {
@@ -76,16 +77,17 @@ cli({
       throw new Error(`--aspect must be 9:16 or 16:9`);
     }
 
-    // Parse --refs first so we know which model variant we need.
+    // Parse --refs / --refVideo first so we know which model variant we need.
     const refsRaw = kwargs.refs ? String(kwargs.refs).trim() : '';
     const refTokens = refsRaw ? refsRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const refVideoRaw = kwargs.refVideo ? String(kwargs.refVideo).trim() : '';
 
     const input: GenInputs = {
       length, count,
       imagesN: refTokens.length,
       charactersN: 0,
       audioRefsN: 0,
-      hasReferenceVideo: false,
+      hasReferenceVideo: refVideoRaw.length > 0,
     };
     const model: ModelSpec = pickModel(input, kwargs.model ? String(kwargs.model) : undefined);
     const validateErrs = validateAgainstModel(model, input);
@@ -109,6 +111,15 @@ cli({
       refSources.push(`${tok}→${r.source}`);
     }
 
+    // Resolve --refVideo (single video for abra_edit mode)
+    let refVideoMediaId: string | undefined;
+    let refVideoSource: string | undefined;
+    if (refVideoRaw) {
+      const v = await resolveVideoRef(page, refVideoRaw, projectId);
+      refVideoMediaId = v.mediaId;
+      refVideoSource = `${refVideoRaw}→${v.source}`;
+    }
+
     // Always check current balance + tier for the preview. The tier value is
     // sent back to the server in clientContext.userPaygateTier; hard-coding a
     // wrong tier causes silent failures (request looks like a different account
@@ -117,8 +128,10 @@ cli({
     const balance = balResp.ok ? Number(balResp.body?.credits ?? 0) : 0;
     const userPaygateTier: string = balResp.body?.userPaygateTier ?? 'PAYGATE_TIER_ONE';
 
-    const refNote = refMediaIds.length > 0
-      ? `参考素材 ${refMediaIds.length} 张（${refSources.join(' / ')}）`
+    const refNote = refVideoMediaId
+      ? `参考视频 1 段（${refVideoSource}）→ abra_edit 模式`
+      : refMediaIds.length > 0
+      ? `参考图 ${refMediaIds.length} 张（${refSources.join(' / ')}）`
       : '无参考素材';
 
     if (kwargs.dryRun) {
@@ -184,7 +197,16 @@ cli({
           seed,
           metadata: {},
         };
-        if (refMediaIds.length > 0) {
+        if (refVideoMediaId) {
+          // abra_edit (video editing) — videoInput references an uploaded mp4
+          // by its mediaId. startFrameIndex/endFrameIndex select the segment
+          // (default 0..240 ≈ first 10s at 24 fps).
+          baseReq.videoInput = {
+            mediaId: refVideoMediaId,
+            startFrameIndex: 0,
+            endFrameIndex: 240,
+          };
+        } else if (refMediaIds.length > 0) {
           // Field names verified via direct API probing:
           //   - field name on the wire is `referenceImages` (NOT `videoGenerationImageInputs`,
           //     which is what shows up in saved mediaMetadata.requestData)
@@ -197,14 +219,19 @@ cli({
         }
         return baseReq;
       }),
-      useV2ModelConfig: true,
+      // useV2ModelConfig is only accepted by T2V / R2V endpoints, NOT by
+      // batchAsyncGenerateVideoEditVideo — the edit endpoint rejects it as
+      // "Unknown name". Omit for the edit path.
+      ...(model.mode === 'edit' ? {} : { useV2ModelConfig: true }),
     };
 
     // Endpoint depends on the mode:
-    //   - text-to-video    → batchAsyncGenerateVideoText
-    //   - reference-images → batchAsyncGenerateVideoReferenceImages (R2V)
-    //   - video edit       → not yet wired up
-    const endpoint = model.mode === 'r2v'
+    //   - text-to-video      → batchAsyncGenerateVideoText
+    //   - reference-images   → batchAsyncGenerateVideoReferenceImages (R2V)
+    //   - video edit         → batchAsyncGenerateVideoEditVideo (abra_edit)
+    const endpoint = model.mode === 'edit'
+      ? 'video:batchAsyncGenerateVideoEditVideo'
+      : model.mode === 'r2v'
       ? 'video:batchAsyncGenerateVideoReferenceImages'
       : 'video:batchAsyncGenerateVideoText';
     const r = await flowFetch(page, `${FLOW_BASE}/${endpoint}`, {

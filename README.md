@@ -69,6 +69,19 @@ opencli flow job-download --mediaId <ID> --out out.mp4
 open out.mp4
 ```
 
+## 视频编辑 (abra_edit)
+
+```bash
+# 自动 chunked resumable 上传，sha256 dedupe
+opencli flow media-upload --file ./clip.mp4 --name myclip
+
+# --refVideo 触发视频编辑模式（固定 40 积分；length/aspect 跟原视频一致）
+opencli flow gen --prompt "改成晚上 加点雾气" --refVideo myclip --yes
+
+# 也可以直接传路径或 mediaId
+opencli flow gen --prompt "..." --refVideo ./clip.mp4 --yes
+```
+
 ## 多参考图生视频 (R2V)
 
 ```bash

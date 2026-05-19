@@ -257,6 +257,20 @@ export async function getRecaptchaToken(page: IPage): Promise<string> {
 }
 
 /**
+ * Pull the labs.google cookies out of the page and format them as a single
+ * Cookie header value. Used when issuing requests to `labs.google` endpoints
+ * directly from Node (which do not accept OAuth Bearer — they are
+ * session-cookie authenticated).
+ */
+export async function getLabsCookieHeader(page: IPage): Promise<string> {
+  const cookies = await page.getCookies({ domain: 'labs.google' });
+  if (!cookies || cookies.length === 0) {
+    throw new Error('未能从 page 获取 labs.google cookie；Flow 可能未登录');
+  }
+  return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+}
+
+/**
  * Read the OAuth access_token out of the Flow session and hand it to the
  * Node process so we can issue requests directly (bypassing CDP's
  * page.evaluate message-size limit for large bodies like base64 images).

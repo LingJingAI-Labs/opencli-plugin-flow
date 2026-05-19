@@ -81,6 +81,19 @@ opencli flow gen \
 # 同一文件第二次 --refs ./hero.png 会秒命中 sha256 cache，不重传
 ```
 
+### B2. 视频编辑（abra_edit）
+```bash
+# 1. 上传视频（≤10 秒，chunked resumable，自动 sha256 dedupe）
+opencli flow media-upload --file ./clip.mp4 --name myclip
+
+# 2. 用 --refVideo（注意是单数）触发 abra_edit。会自动用 abra_edit 模型，
+#    固定 40 积分，length/aspect 跟输入视频一致（CLI 自动忽略 --length / --aspect）
+opencli flow gen --prompt "改成晚上 加点雾气" --refVideo myclip --yes
+
+# 也可以直接传路径，自动 dedupe 上传
+opencli flow gen --prompt "..." --refVideo ./clip.mp4 --yes
+```
+
 ### C. 批量生成（剧本分镜场景）
 
 CLI 单次只跑一个任务。批量并行**用 shell 自己组合**，不在 CLI 内部排队。
