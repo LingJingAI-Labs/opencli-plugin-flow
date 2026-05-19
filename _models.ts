@@ -35,6 +35,32 @@ export const OMNI: Record<string, ModelSpec> = {
 export const VALID_LENGTHS = [4, 6, 8, 10] as const;
 export const VALID_ASPECTS: Aspect[] = ['9:16', '16:9'];
 
+/**
+ * Friendly aliases the user can pass to `--model`. The wire-level model keys
+ * (`abra_*`) are an internal Google detail — most users should not need to
+ * see them. Aliases below all resolve to the same engine.
+ */
+const MODEL_ALIASES: Record<string, string> = {
+  // Video edit
+  'edit': 'abra_edit',
+  'omni-edit': 'abra_edit',
+  'video-edit': 'abra_edit',
+  // T2V
+  't2v-4s': 'abra_t2v_4s',   'omni-t2v-4s': 'abra_t2v_4s',
+  't2v-6s': 'abra_t2v_6s',   'omni-t2v-6s': 'abra_t2v_6s',
+  't2v-8s': 'abra_t2v_8s',   'omni-t2v-8s': 'abra_t2v_8s',
+  't2v-10s': 'abra_t2v_10s', 'omni-t2v-10s': 'abra_t2v_10s',
+  // R2V
+  'r2v-4s': 'abra_r2v_4s',   'omni-r2v-4s': 'abra_r2v_4s',
+  'r2v-6s': 'abra_r2v_6s',   'omni-r2v-6s': 'abra_r2v_6s',
+  'r2v-8s': 'abra_r2v_8s',   'omni-r2v-8s': 'abra_r2v_8s',
+  'r2v-10s': 'abra_r2v_10s', 'omni-r2v-10s': 'abra_r2v_10s',
+};
+
+export function resolveModelKey(input: string): string {
+  return MODEL_ALIASES[input] || input;
+}
+
 export function aspectToEnum(a: Aspect): string {
   return a === '9:16' ? 'VIDEO_ASPECT_RATIO_PORTRAIT' : 'VIDEO_ASPECT_RATIO_LANDSCAPE';
 }
@@ -50,8 +76,15 @@ export type GenInputs = {
 
 export function pickModel(input: GenInputs, override?: string): ModelSpec {
   if (override) {
-    const m = OMNI[override];
-    if (!m) throw new Error(`unknown model key: ${override}`);
+    const resolved = resolveModelKey(override);
+    const m = OMNI[resolved];
+    if (!m) {
+      const aliases = Object.keys(MODEL_ALIASES).slice(0, 6).join(', ');
+      throw new Error(
+        `unknown model "${override}". Try friendly aliases like: ${aliases}, ... ` +
+        `or raw keys: ${Object.keys(OMNI).slice(0, 4).join(', ')}, ...`,
+      );
+    }
     return m;
   }
   if (input.hasReferenceVideo) return OMNI.abra_edit;

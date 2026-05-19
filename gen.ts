@@ -50,7 +50,7 @@ cli({
     { name: 'aspect', default: '9:16', choices: ['9:16', '16:9'], help: '宽高比' },
     { name: 'count', type: 'int', default: 1, help: '一次生成的样本数；每多 1 个加一份积分' },
     { name: 'projectId', help: '项目 ID；不传则用 flow project-use 设置的默认值或当前页面' },
-    { name: 'model', help: '强制指定模型 key (e.g. abra_t2v_8s)；默认自动选' },
+    { name: 'model', help: '强制指定模型；默认根据 --refs/--refVideo 自动选。友好别名：edit / t2v-8s / r2v-8s 等' },
     { name: 'seed', type: 'int', help: '随机种子，默认随机' },
     { name: 'dryRun', type: 'boolean', default: false, help: '只算积分不真发请求' },
     { name: 'yes', type: 'boolean', default: false, help: '跳过 dry-run 确认，直接提交（agent 用）' },
@@ -128,11 +128,10 @@ cli({
     const balance = balResp.ok ? Number(balResp.body?.credits ?? 0) : 0;
     const userPaygateTier: string = balResp.body?.userPaygateTier ?? 'PAYGATE_TIER_ONE';
 
-    const refNote = refVideoMediaId
-      ? `参考视频 1 段（${refVideoSource}）→ abra_edit 模式`
-      : refMediaIds.length > 0
-      ? `参考图 ${refMediaIds.length} 张（${refSources.join(' / ')}）`
-      : '无参考素材';
+    const noteParts: string[] = [];
+    if (refVideoMediaId) noteParts.push(`参考视频 1 段（${refVideoSource}）→ 视频编辑模式`);
+    if (refMediaIds.length > 0) noteParts.push(`参考图 ${refMediaIds.length} 张（${refSources.join(' / ')}）`);
+    const refNote = noteParts.length ? noteParts.join('；') : '无参考素材';
 
     if (kwargs.dryRun) {
       return [{
@@ -206,12 +205,15 @@ cli({
             startFrameIndex: 0,
             endFrameIndex: 240,
           };
-        } else if (refMediaIds.length > 0) {
-          // Field names verified via direct API probing:
-          //   - field name on the wire is `referenceImages` (NOT `videoGenerationImageInputs`,
-          //     which is what shows up in saved mediaMetadata.requestData)
-          //   - enum value is `IMAGE_USAGE_TYPE_ASSET` (NOT `_ASSET_IMAGE`, again the saved
-          //     metadata uses the longer form, but the request schema only accepts the short one)
+        }
+        if (refMediaIds.length > 0) {
+          // abra_edit ALSO accepts referenceImages alongside videoInput (verified
+          // via API probe — server accepts both fields, max 5 images including
+          // characters). For R2V the same field is the only ref input.
+          //
+          // Field name on the wire is `referenceImages` (not `videoGenerationImageInputs`
+          // which is what shows up in saved mediaMetadata.requestData).
+          // Enum value is `IMAGE_USAGE_TYPE_ASSET` (not `_ASSET_IMAGE`).
           baseReq.referenceImages = refMediaIds.map((mid) => ({
             mediaId: mid,
             imageUsageType: 'IMAGE_USAGE_TYPE_ASSET',

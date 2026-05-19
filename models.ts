@@ -20,7 +20,7 @@ cli({
   args: [
     { name: 'raw', type: 'boolean', default: false, help: '显示原始 model key（abra_t2v_4s 等）' },
   ],
-  columns: ['模式', '时长', '宽高比', '积分', '最多参考图(含角色)', '最多音色', '最多角色'],
+  columns: ['模式', '别名 (--model)', '时长', '宽高比', '积分', '最多参考图(含角色)', '最多音色', '最多角色'],
   func: async (kwargs) => {
     if (kwargs.raw) {
       return Object.values(OMNI).map((m) => ({
@@ -34,8 +34,11 @@ cli({
         key_raw: m.key,
       }));
     }
+    // friendly alias for `--model`: edit / t2v-4s / r2v-8s etc.
+    const aliasOf = (key: string) => key === 'abra_edit' ? 'edit' : key.replace(/^abra_/, '').replace(/_/g, '-');
     return Object.values(OMNI).map((m) => ({
       模式: modeLabel(m.mode),
+      '别名 (--model)': aliasOf(m.key),
       时长: m.key === 'abra_edit' ? '跟输入视频一致（≤10 秒）' : `${m.lengthSeconds} 秒`,
       宽高比: '9:16 / 16:9',
       积分: m.cost,

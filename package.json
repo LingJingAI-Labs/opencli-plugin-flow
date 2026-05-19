@@ -1,6 +1,6 @@
 {
   "name": "opencli-plugin-flow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "Google Labs Flow CLI — Omni video generation via browser bridge",
   "license": "MIT",
